@@ -1,6 +1,6 @@
 # Sesame CSM Demo
 
-This repository contains demo scripts for running the Conversational Speech Model (CSM) with support for both PyTorch and MLX (Apple Silicon) backends.
+This repository contains Gradio app for locally running the Conversational Speech Model (CSM) with support for both CUDA, MLX (Apple Silicon) and CPU backends.
 
 ## Installation
 
@@ -37,7 +37,7 @@ python run_csm_gradio.py
 
 Features:
 - Interactive web UI for conversation generation
-- Custom prompt selection for each speaker
+- Custom prompt selection for each speaker (Voice Cloning)
 - Real-time audio preview
 - Automatic backend selection (CUDA/MLX/CPU)
 
@@ -96,8 +96,8 @@ A hosted [Hugging Face space](https://huggingface.co/spaces/sesame/csm-1b) is al
 
 ## Requirements
 
-* A CUDA-compatible GPU
-* The code has been tested on CUDA 12.4 and 12.6, but it may also work on other versions
+* A CUDA or Apple MLX GPU (Runs on CPU otherwise)
+* The code has been tested on CUDA 12.4, 12.6 and Apple Macbook M3, but it may also work on other versions
 * Similarly, Python 3.10 is recommended, but newer versions may be fine
 * For some audio operations, `ffmpeg` may be required
 * Access to the following Hugging Face models:
