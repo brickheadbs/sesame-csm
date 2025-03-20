@@ -1,10 +1,19 @@
 import os
+import sys
+
+# Add csm-mlx directory to Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), "csm-mlx"))
+
 import torch
 import torchaudio
 import gradio as gr
 import numpy as np
 from huggingface_hub import hf_hub_download
-from generator import load_csm_1b, Segment
+
+# Import both PyTorch and MLX implementations
+from generator import load_csm_1b as load_csm_1b_torch, Segment as TorchSegment
+from csm_mlx import CSM as MLXCSM, csm_1b as csm_1b_mlx, Segment as MLXSegment
+import mlx.core as mx
 
 # Disable Triton compilation
 os.environ["NO_TORCH_COMPILE"] = "1"
@@ -52,7 +61,7 @@ I'm great, so happy to be speaking to you.
 Me too, this is some cool stuff huh?
 """
 
-def load_prompt_audio(audio_path: str, target_sample_rate: int) -> torch.Tensor:
+def load_prompt_audio(audio_path: str, target_sample_rate: int) -> torch.Tensor | mx.array:
     audio_tensor, sample_rate = torchaudio.load(audio_path)
     audio_tensor = audio_tensor.squeeze(0)
     # Resample is lazy so we can always call it
@@ -61,9 +70,28 @@ def load_prompt_audio(audio_path: str, target_sample_rate: int) -> torch.Tensor:
     )
     return audio_tensor
 
-def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int) -> Segment:
+def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, backend: str) -> TorchSegment | MLXSegment:
     audio_tensor = load_prompt_audio(audio_path, sample_rate)
-    return Segment(text=text, speaker=speaker, audio=audio_tensor)
+    
+    if backend == "mlx":
+        # Convert torch tensor to MLX array
+        if isinstance(audio_tensor, torch.Tensor):
+            audio_tensor = mx.array(audio_tensor.numpy())
+        return MLXSegment(text=text, speaker=speaker, audio=audio_tensor)
+    else:
+        # Convert MLX array to torch tensor if needed
+        if isinstance(audio_tensor, mx.array):
+            audio_tensor = torch.from_numpy(audio_tensor.numpy())
+        return TorchSegment(text=text, speaker=speaker, audio=audio_tensor)
+
+def get_backend():
+    """Automatically select the best available backend"""
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
+        return "mlx"
+    else:
+        return "cpu"
 
 def infer(
     text_prompt_speaker_a,
@@ -72,45 +100,76 @@ def infer(
     audio_prompt_speaker_b,
     conversation_input,
 ) -> tuple[int, np.ndarray]:
-    # Select device
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # Load model
-    generator = load_csm_1b(device)
+    backend = get_backend()
+    print(f"Using backend: {backend}")
 
     try:
-        # Estimate token limit
-        if len(conversation_input.strip() + text_prompt_speaker_a.strip() + text_prompt_speaker_b.strip()) >= 2000:
-            raise gr.Error("Prompts and conversation too long.")
-
-        # Prepare prompts
-        prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, generator.sample_rate)
-        prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, generator.sample_rate)
-        prompt_segments = [prompt_a, prompt_b]
-        
-        # Generate conversation
-        generated_segments = []
-        conversation_lines = [line.strip() for line in conversation_input.strip().split("\n") if line.strip()]
-        
-        for i, line in enumerate(conversation_lines):
-            # Alternating speakers A and B
-            speaker_id = i % 2
+        if backend == "mlx":
+            # Use csm-mlx's implementation
+            from mlx_lm.sample_utils import make_sampler
+            from csm_mlx import generate as mlx_generate
             
-            audio_tensor = generator.generate(
-                text=line,
-                speaker=speaker_id,
-                context=prompt_segments + generated_segments,
-                max_audio_length_ms=10_000,
-            )
-            generated_segments.append(Segment(text=line, speaker=speaker_id, audio=audio_tensor))
+            # Initialize model
+            generator = MLXCSM(csm_1b_mlx())
+            weight = hf_hub_download(repo_id="senstella/csm-1b-mlx", filename="ckpt.safetensors")
+            generator.load_weights(weight)
+            sample_rate = 24000
 
-        # Concatenate all generations
-        all_audio = torch.cat([seg.audio for seg in generated_segments], dim=0)
-        
-        # Convert to numpy array for gradio
-        audio_array = (all_audio * 32768).to(torch.int16).cpu().numpy()
-        
-        return generator.sample_rate, audio_array
+            # Prepare prompts
+            prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, sample_rate, backend)
+            prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, sample_rate, backend)
+            context = [prompt_a, prompt_b]
+
+            # Generate conversation
+            generated_segments = []
+            conversation_lines = [line.strip() for line in conversation_input.strip().split("\n") if line.strip()]
+            
+            for i, line in enumerate(conversation_lines):
+                speaker_id = i % 2
+                audio = mlx_generate(
+                    generator,
+                    text=line,
+                    speaker=speaker_id,
+                    context=context + generated_segments,
+                    max_audio_length_ms=10_000,
+                    sampler=make_sampler(temp=0.8, top_k=50)
+                )
+                generated_segments.append(MLXSegment(text=line, speaker=speaker_id, audio=audio))
+
+            # Concatenate all generations
+            all_audio = mx.concat([seg.audio for seg in generated_segments], axis=0)
+            # Convert to 16-bit PCM format that Gradio expects
+            audio_array = (all_audio * 32768).astype(mx.int16)
+            # Convert to numpy array
+            audio_array = np.array(audio_array.tolist(), dtype=np.int16)
+
+        else:
+            # Original PyTorch implementation
+            generator = load_csm_1b_torch(backend)
+            sample_rate = generator.sample_rate
+
+            # Prepare prompts
+            prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, sample_rate, backend)
+            prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, sample_rate, backend)
+            prompt_segments = [prompt_a, prompt_b]
+            
+            generated_segments = []
+            conversation_lines = [line.strip() for line in conversation_input.strip().split("\n") if line.strip()]
+            
+            for i, line in enumerate(conversation_lines):
+                speaker_id = i % 2
+                audio_tensor = generator.generate(
+                    text=line,
+                    speaker=speaker_id,
+                    context=prompt_segments + generated_segments,
+                    max_audio_length_ms=10_000,
+                )
+                generated_segments.append(TorchSegment(text=line, speaker=speaker_id, audio=audio_tensor))
+
+            all_audio = torch.cat([seg.audio for seg in generated_segments], dim=0)
+            audio_array = (all_audio * 32768).to(torch.int16).cpu().numpy()
+
+        return sample_rate, audio_array
 
     except Exception as e:
         raise gr.Error(f"Error generating audio: {e}")

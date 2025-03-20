@@ -12,6 +12,7 @@ from csm_mlx.segment import Segment
 
 @cache
 def get_audio_tokenizer(n_audio_codebooks: int) -> Mimi:
+    # Uses Mimi tokenizer for audio
     mimi = Mimi(mimi_202407(n_audio_codebooks))
     weight = hf_hub_download(**TOKENIZERS["audio"])  # type: ignore
 
@@ -22,6 +23,7 @@ def get_audio_tokenizer(n_audio_codebooks: int) -> Mimi:
 
 @cache
 def get_text_tokenizer() -> LlamaTokenizer:
+    # Uses LLaMA tokenizer for text
     """
     https://github.com/huggingface/transformers/issues/22794#issuecomment-2092623992
     """

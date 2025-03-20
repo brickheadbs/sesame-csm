@@ -1,8 +1,25 @@
-torch==2.4.0
-torchaudio==2.4.0
-tokenizers==0.21.0
-transformers
+# Core dependencies
+torch
+torchaudio
+gradio
+numpy
 huggingface_hub
+transformers
+
+# MLX dependencies
+mlx>=0.22.1
+mlx-lm>=0.22.0
+moshi-mlx>=0.2.2
+
+# Audio processing
+audiofile>=1.5.1
+audresample>=1.3.3
+
+# CLI tools
+typer>=0.15.2
+rich
+
+tokenizers==0.21.0
 moshi==0.2.2
 torchtune==0.4.0
 torchao==0.9.0
@@ -10,4 +27,3 @@ silentcipher @ git+https://github.com/SesameAILabs/silentcipher@master
 bitsandbytes>=0.41.1
 ffmpeg-python
 soundfile
-gradio>=4.0.0
