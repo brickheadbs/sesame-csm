@@ -1,17 +1,42 @@
 import os
-os.environ["NO_TORCH_COMPILE"] = "1"
-
-try:
-    import triton
-except ImportError:
-    print("Warning: Triton not available, using CPU-only mode")
-
-import gradio as gr
-import numpy as np
 import torch
 import torchaudio
-from generator import Segment, load_csm_1b
+import gradio as gr
+import numpy as np
 from huggingface_hub import hf_hub_download
+from generator import load_csm_1b, Segment
+
+# Disable Triton compilation
+os.environ["NO_TORCH_COMPILE"] = "1"
+
+# Default prompts are available at https://hf.co/sesame/csm-1b
+prompt_filepath_conversational_a = hf_hub_download(
+    repo_id="sesame/csm-1b",
+    filename="prompts/conversational_a.wav"
+)
+prompt_filepath_conversational_b = hf_hub_download(
+    repo_id="sesame/csm-1b",
+    filename="prompts/conversational_b.wav"
+)
+
+SPEAKER_PROMPTS = {
+    "conversational_a": {
+        "text": (
+            "like revising for an exam I'd have to try and like keep up the momentum because I'd "
+            "start really early I'd be like okay I'm gonna start revising now and then like "
+            "you're revising for ages and then I just like start losing steam"
+        ),
+        "audio": prompt_filepath_conversational_a
+    },
+    "conversational_b": {
+        "text": (
+            "like a super Mario level. Like it's very like high detail. And like, once you get "
+            "into the park, it just like, everything looks like a computer game and they have all "
+            "these, like, you know, if, if there's like a, you know, like in a Mario game"
+        ),
+        "audio": prompt_filepath_conversational_b
+    }
+}
 
 SPACE_INTRO_TEXT = """\
 # Sesame CSM 1B Demo
@@ -27,39 +52,17 @@ I'm great, so happy to be speaking to you.
 Me too, this is some cool stuff huh?
 """
 
-SPEAKER_PROMPTS = {
-    "conversational_a": {
-        "text": (
-            "like revising for an exam I'd have to try and like keep up the momentum because I'd "
-            "start really early I'd be like okay I'm gonna start revising now and then like "
-            "you're revising for ages and then I just like start losing steam"
-        ),
-        "audio": "prompts/conversational_a.wav",
-    },
-    "conversational_b": {
-        "text": (
-            "like a super Mario level. Like it's very like high detail. And like, once you get "
-            "into the park, it just like, everything looks like a computer game and they have all "
-            "these, like, you know, if, if there's like a, you know, like in a Mario game"
-        ),
-        "audio": "prompts/conversational_b.wav",
-    }
-}
-
-# Setup device - prefer CUDA, fallback to CPU
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using device: {device}")
-
-model_path = hf_hub_download(repo_id="sesame/csm-1b", filename="ckpt.pt")
-generator = load_csm_1b(model_path, device)
-
-def prepare_prompt(text: str, speaker: int, audio_path: str) -> Segment:
+def load_prompt_audio(audio_path: str, target_sample_rate: int) -> torch.Tensor:
     audio_tensor, sample_rate = torchaudio.load(audio_path)
     audio_tensor = audio_tensor.squeeze(0)
-    if sample_rate != generator.sample_rate:
-        audio_tensor = torchaudio.functional.resample(
-            audio_tensor, orig_freq=sample_rate, new_freq=generator.sample_rate
-        )
+    # Resample is lazy so we can always call it
+    audio_tensor = torchaudio.functional.resample(
+        audio_tensor, orig_freq=sample_rate, new_freq=target_sample_rate
+    )
+    return audio_tensor
+
+def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int) -> Segment:
+    audio_tensor = load_prompt_audio(audio_path, sample_rate)
     return Segment(text=text, speaker=speaker, audio=audio_tensor)
 
 def infer(
@@ -69,15 +72,21 @@ def infer(
     audio_prompt_speaker_b,
     conversation_input,
 ) -> tuple[int, np.ndarray]:
+    # Select device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Load model
+    generator = load_csm_1b(device)
+
     try:
         # Estimate token limit
         if len(conversation_input.strip() + text_prompt_speaker_a.strip() + text_prompt_speaker_b.strip()) >= 2000:
             raise gr.Error("Prompts and conversation too long.")
 
         # Prepare prompts
-        audio_prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a)
-        audio_prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b)
-        prompt_segments = [audio_prompt_a, audio_prompt_b]
+        prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, generator.sample_rate)
+        prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, generator.sample_rate)
+        prompt_segments = [prompt_a, prompt_b]
         
         # Generate conversation
         generated_segments = []
@@ -91,21 +100,28 @@ def infer(
                 text=line,
                 speaker=speaker_id,
                 context=prompt_segments + generated_segments,
-                max_audio_length_ms=30_000,
+                max_audio_length_ms=10_000,
             )
             generated_segments.append(Segment(text=line, speaker=speaker_id, audio=audio_tensor))
 
         # Concatenate all generations
-        audio_tensors = [segment.audio for segment in generated_segments]
-        audio_tensor = torch.cat(audio_tensors, dim=0)
+        all_audio = torch.cat([seg.audio for seg in generated_segments], dim=0)
         
-        # Convert to numpy array
-        audio_array = (audio_tensor * 32768).to(torch.int16).cpu().numpy()
+        # Convert to numpy array for gradio
+        audio_array = (all_audio * 32768).to(torch.int16).cpu().numpy()
         
         return generator.sample_rate, audio_array
 
     except Exception as e:
         raise gr.Error(f"Error generating audio: {e}")
+
+def update_prompt(speaker):
+    if speaker in SPEAKER_PROMPTS:
+        return (
+            SPEAKER_PROMPTS[speaker]["text"],
+            SPEAKER_PROMPTS[speaker]["audio"]
+        )
+    return None, None
 
 def create_speaker_prompt_ui(speaker_name: str):
     speaker_dropdown = gr.Dropdown(
@@ -126,14 +142,6 @@ def create_speaker_prompt_ui(speaker_name: str):
         )
 
     return speaker_dropdown, text_prompt_speaker, audio_prompt_speaker
-
-def update_prompt(speaker):
-    if speaker in SPEAKER_PROMPTS:
-        return (
-            SPEAKER_PROMPTS[speaker]["text"],
-            SPEAKER_PROMPTS[speaker]["audio"]
-        )
-    return None, None
 
 with gr.Blocks() as app:
     gr.Markdown(SPACE_INTRO_TEXT)
