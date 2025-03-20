@@ -2,6 +2,10 @@
 
 This repository contains Gradio app for locally running the Conversational Speech Model (CSM) with support for both CUDA, MLX (Apple Silicon) and CPU backends.
 
+## UI Screenshots:
+![Gradio UI](assets/gradio-demo.jpg)
+![Voice Clone](assets/speaker-voice.jpeg)
+
 ## Installation
 
 ```bash
@@ -157,10 +161,6 @@ This will launch a web interface where you can:
 
 The interface will automatically use CUDA if available for faster generation,
 otherwise it will fall back to CPU mode.
-
-## UI Screenshots:
-![Gradio UI](assets/gradio-demo.jpg)
-![Voice Clone](assets/speaker-voice.jpeg)
 
 ### Python API
 
