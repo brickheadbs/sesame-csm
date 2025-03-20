@@ -1,5 +1,6 @@
 # CSM
 
+**2025/03/20** - I am releasing support for Apple MLX for Mac device. The UI will auto select the backend from CUDA, MPS or CPU. The MLX code is an adaptation from [Senstella/csm-mlx](https://github.com/senstella/csm-mlx)
 **2025/03/15** - I am releasing support for CPU for non-CUDA device. I am relasing a Gradio UI as well.
 **2025/03/13** - We are releasing the 1B CSM variant. The checkpoint is [hosted on HuggingFace](https://huggingface.co/sesame/csm_1b).
 
