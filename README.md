@@ -9,7 +9,7 @@ CSM (Conversational Speech Model) is a speech generation model from [Sesame](htt
 
 A fine-tuned variant of CSM powers the [interactive voice demo](https://www.sesame.com/voicedemo) shown in our [blog post](https://www.sesame.com/research/crossing_the_uncanny_valley_of_voice).
 
-A hosted [HuggingFace space](https://huggingface.co/spaces/sesame/csm-1b) is also available for testing audio generation.
+A hosted [Hugging Face space](https://huggingface.co/spaces/sesame/csm-1b) is also available for testing audio generation.
 
 ## Requirements
 
@@ -23,18 +23,13 @@ A hosted [HuggingFace space](https://huggingface.co/spaces/sesame/csm-1b) is als
 
 ### Setup
 
-Clone and setup the repo:
-
 ```bash
 git clone git@github.com:SesameAILabs/csm.git
 cd csm
 python3.10 -m venv .venv
 source .venv/bin/activate
-
-# Set environment variable to disable Triton compilation
-export NO_TORCH_COMPILE=1
-
 pip install -r requirements.txt
+```
 
 Install ffmpeg (required for audio processing):
 
@@ -47,20 +42,28 @@ sudo apt-get install ffmpeg
 
 # On Windows
 # Download from https://ffmpeg.org/download.html
-
-# You will need access to CSM-1B and Llama-3.2-1B
-huggingface-cli login
-
 ```
 
+Download the required prompt audio files:
+
+```bash
+# Create prompts directory
+mkdir -p prompts
+
+# Download prompt files and place them in the prompts directory
+https://huggingface.co/spaces/sesame/csm-1b/tree/main/prompts
+```
 
 ### Interactive Web Interface
 
 Run the Gradio web interface for an interactive experience:
 
 ```bash
-# Run normally (environment variable is set in the script)
-python run_csm.py
+# Option 1: Set environment variable when running
+NO_TORCH_COMPILE=1 python run_csm_gradio.py
+
+# Option 2: Run normally (environment variable is set in the script)
+python run_csm_gradio.py
 ```
 
 This will launch a web interface where you can:
@@ -76,18 +79,14 @@ otherwise it will fall back to CPU mode.
 ![Gradio UI](assets/gradio-demo.jpg)
 ![Voice Clone](assets/speaker-voice.jpeg)
 
-python run_csm.py
-from huggingface_hub import hf_hub_download
-=======
+### Python API
+
+Generate a single utterance:
+
+```python
 from generator import load_csm_1b
 import torchaudio
 import torch
-
-# Use CUDA if available, otherwise CPU
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-model_path = hf_hub_download(repo_id="sesame/csm-1b", filename="ckpt.pt")
-generator = load_csm_1b(model_path, device)
 
 if torch.backends.mps.is_available():
     device = "mps"
