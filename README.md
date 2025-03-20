@@ -1,3 +1,85 @@
+# Sesame CSM Demo
+
+This repository contains demo scripts for running the Conversational Speech Model (CSM) with support for both PyTorch and MLX (Apple Silicon) backends.
+
+## Installation
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+```
+
+## Usage
+
+### Command Line Interface
+
+Use `run_csm.py` to generate a conversation and save it to a WAV file:
+
+```bash
+python run_csm.py
+```
+
+The script will:
+1. Automatically select the best available backend:
+   - CUDA if NVIDIA GPU is available
+   - MLX if running on Apple Silicon
+   - CPU as fallback
+2. Generate a sample conversation between two speakers
+3. Save the output as `full_conversation.wav`
+
+### Gradio Web Interface
+
+Use `run_csm_gradio.py` to launch an interactive web interface:
+
+```bash
+python run_csm_gradio.py
+```
+
+Features:
+- Interactive web UI for conversation generation
+- Custom prompt selection for each speaker
+- Real-time audio preview
+- Automatic backend selection (CUDA/MLX/CPU)
+
+## Backends
+
+The scripts support three backends:
+
+1. **CUDA** (NVIDIA GPU)
+   - Fastest on NVIDIA hardware
+   - Uses PyTorch implementation
+
+2. **MLX** (Apple Silicon)
+   - Optimized for M1/M2/M3 Macs
+   - Uses Apple's MLX framework
+   - Automatically selected on Apple Silicon
+
+3. **CPU**
+   - Fallback option
+   - Works on all platforms
+   - Uses PyTorch implementation
+
+## Model Details
+
+The demo uses CSM-1B model which consists of:
+- A backbone network (1B parameters)
+- A decoder network (100M parameters)
+- Support for multiple speakers
+- Context-aware generation
+
+## Requirements
+
+- Python 3.10+
+- PyTorch
+- MLX (for Apple Silicon)
+- Gradio
+- Other dependencies listed in requirements.txt
+
+## Credits
+
+- Original PyTorch implementation by [Sesame](https://github.com/SesameAILabs/csm)
+- MLX port by [senstella](https://github.com/senstella/csm-mlx)
+
 # CSM
 
 **2025/03/20** - I am releasing support for Apple MLX for Mac device. The UI will auto select the backend from CUDA, MPS or CPU. The MLX code is an adaptation from [Senstella/csm-mlx](https://github.com/senstella/csm-mlx)
