@@ -1,6 +1,7 @@
 # CSM
 
-**2025/03/13** - We are releasing the 1B CSM variant. The checkpoint is [hosted on Hugging Face](https://huggingface.co/sesame/csm_1b).
+**2025/03/15** - I am releasing support for CPU for non-CUDA device. I am relasing a Gradio UI as well.
+**2025/03/13** - We are releasing the 1B CSM variant. The checkpoint is [hosted on HuggingFace](https://huggingface.co/sesame/csm_1b).
 
 ---
 
@@ -28,24 +29,59 @@ cd csm
 python3.10 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-# You will need access to CSM-1B and Llama-3.2-1B
-huggingface-cli login
 ```
 
-### Windows Setup
+Install ffmpeg (required for audio processing):
 
-The `triton` package cannot be installed in Windows. Instead use `pip install triton-windows`.
-
-## Usage
-
-Run the example script:
 ```bash
-python run_csm.py
-```
-You can also create your own script using the example code below.
+# On macOS with Homebrew
+brew install ffmpeg
 
-Generate a sentence
+# On Ubuntu/Debian
+sudo apt-get install ffmpeg
+
+# On Windows
+# Download from https://ffmpeg.org/download.html
+```
+
+Download the required prompt audio files:
+
+```bash
+# Create prompts directory
+mkdir -p prompts
+
+# Download prompt files and place them in the prompts directory
+https://huggingface.co/spaces/sesame/csm-1b/tree/main/prompts
+```
+
+### Interactive Web Interface
+
+Run the Gradio web interface for an interactive experience:
+
+```bash
+# Option 1: Set environment variable when running
+NO_TORCH_COMPILE=1 python run_csm_gradio.py
+
+# Option 2: Run normally (environment variable is set in the script)
+python run_csm_gradio.py
+```
+
+This will launch a web interface where you can:
+- Choose or customize voice prompts for both speakers
+- Upload or record your own voice prompts
+- Enter a conversation with alternating lines between speakers
+- Generate and play the conversation audio directly in the browser
+
+The interface will automatically use CUDA if available for faster generation,
+otherwise it will fall back to CPU mode.
+
+## UI Screenshots:
+![Gradio UI](assets/gradio-demo.jpg)
+![Voice Clone](assets/speaker-voice.jpeg)
+
+### Python API
+
+Generate a single utterance:
 
 ```python
 from generator import load_csm_1b
