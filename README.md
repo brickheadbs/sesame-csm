@@ -1,4 +1,4 @@
-# Sesame CSM Demo
+# Sesame CSM UI
 
 This repository contains Gradio app for locally running the Conversational Speech Model (CSM) with support for both CUDA, MLX (Apple Silicon) and CPU backends.
 
@@ -6,9 +6,13 @@ This repository contains Gradio app for locally running the Conversational Speec
 ![Gradio UI](assets/gradio-demo.jpg)
 ![Voice Clone](assets/speaker-voice.jpeg)
 
+Blog - https://voipnuggets.com/2025/03/21/sesame-csm-gradio-ui-free-local-high-quality-text-to-speech-with-voice-cloning-cuda-apple-mlx-and-cpu/
 ## Installation
 
 ```bash
+python -m venv venv
+source venv/bin/activate
+
 # Install dependencies
 pip install -r requirements.txt
 ```
