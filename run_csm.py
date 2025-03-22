@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any
 
 # Add csm-mlx directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "csm-mlx"))
@@ -9,10 +10,8 @@ import torchaudio
 import numpy as np
 from huggingface_hub import hf_hub_download
 
-# Import both PyTorch and MLX implementations
+# Import PyTorch implementation
 from generator import load_csm_1b as load_csm_1b_torch, Segment as TorchSegment
-from csm_mlx import CSM as MLXCSM, csm_1b as csm_1b_mlx, Segment as MLXSegment, generate as mlx_generate
-import mlx.core as mx
 
 # Disable Triton compilation
 os.environ["NO_TORCH_COMPILE"] = "1"
@@ -46,7 +45,7 @@ SPEAKER_PROMPTS = {
     }
 }
 
-def load_prompt_audio(audio_path: str, target_sample_rate: int) -> torch.Tensor | mx.array:
+def load_prompt_audio(audio_path: str, target_sample_rate: int) -> Any:
     audio_tensor, sample_rate = torchaudio.load(audio_path)
     audio_tensor = audio_tensor.squeeze(0)
     # Resample is lazy so we can always call it
@@ -55,7 +54,7 @@ def load_prompt_audio(audio_path: str, target_sample_rate: int) -> torch.Tensor 
     )
     return audio_tensor
 
-def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, backend: str) -> TorchSegment | MLXSegment:
+def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, backend: str) -> Any:
     audio_tensor = load_prompt_audio(audio_path, sample_rate)
 
     if backend == "mlx":
@@ -74,6 +73,9 @@ def get_backend():
     if torch.cuda.is_available():
         return "cuda"
     elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
+        global MLXCSM, csm_1b_mlx, MLXSegment, mx, mlx_generate
+        from csm_mlx import CSM as MLXCSM, csm_1b as csm_1b_mlx, Segment as MLXSegment, generate as mlx_generate
+        import mlx.core as mx
         return "mlx"
     else:
         return "cpu"
