@@ -9,15 +9,41 @@ This repository contains Gradio app for locally running the Conversational Speec
 Blog - https://voipnuggets.com/2025/03/21/sesame-csm-gradio-ui-free-local-high-quality-text-to-speech-with-voice-cloning-cuda-apple-mlx-and-cpu/
 ## Installation
 
-```bash
-python -m venv venv
-source venv/bin/activate
+### Setup
 
-# Install dependencies
+```bash
+git clone git@github.com:SesameAILabs/csm.git
+cd csm
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+```
+You need to have access to these models on huggingface:
+
+Llama-3.2-1B -- https://huggingface.co/meta-llama/Llama-3.2-1B 
+CSM-1B -- https://huggingface.co/sesame/csm-1b
+
+Login to hugging face and request access, it should not take much time to get access
+Once you get the access run the following command on the terminal to login into huggingface account
+```bash
+huggingface-cli login
 ```
 
 ## Usage
+
+### Gradio Web Interface
+
+Use `run_csm_gradio.py` to launch an interactive web interface:
+
+```bash
+python run_csm_gradio.py
+```
+
+Features:
+- Interactive web UI for conversation generation
+- Custom prompt selection for each speaker (Voice Cloning)
+- Real-time audio preview
+- Automatic backend selection (CUDA/MLX/CPU)
 
 ### Command Line Interface
 
@@ -34,20 +60,6 @@ The script will:
    - CPU as fallback
 2. Generate a sample conversation between two speakers
 3. Save the output as `full_conversation.wav`
-
-### Gradio Web Interface
-
-Use `run_csm_gradio.py` to launch an interactive web interface:
-
-```bash
-python run_csm_gradio.py
-```
-
-Features:
-- Interactive web UI for conversation generation
-- Custom prompt selection for each speaker (Voice Cloning)
-- Real-time audio preview
-- Automatic backend selection (CUDA/MLX/CPU)
 
 ## Backends
 
@@ -66,14 +78,6 @@ The scripts support three backends:
    - Fallback option
    - Works on all platforms
    - Uses PyTorch implementation
-
-## Model Details
-
-The demo uses CSM-1B model which consists of:
-- A backbone network (1B parameters)
-- A decoder network (100M parameters)
-- Support for multiple speakers
-- Context-aware generation
 
 ## Requirements
 
@@ -101,70 +105,6 @@ CSM (Conversational Speech Model) is a speech generation model from [Sesame](htt
 A fine-tuned variant of CSM powers the [interactive voice demo](https://www.sesame.com/voicedemo) shown in our [blog post](https://www.sesame.com/research/crossing_the_uncanny_valley_of_voice).
 
 A hosted [Hugging Face space](https://huggingface.co/spaces/sesame/csm-1b) is also available for testing audio generation.
-
-## Requirements
-
-* A CUDA or Apple MLX GPU (Runs on CPU otherwise)
-* The code has been tested on CUDA 12.4, 12.6 and Apple Macbook M3, but it may also work on other versions
-* Similarly, Python 3.10 is recommended, but newer versions may be fine
-* For some audio operations, `ffmpeg` may be required
-* Access to the following Hugging Face models:
-  * [Llama-3.2-1B](https://huggingface.co/meta-llama/Llama-3.2-1B)
-  * [CSM-1B](https://huggingface.co/sesame/csm-1b)
-
-### Setup
-
-```bash
-git clone git@github.com:SesameAILabs/csm.git
-cd csm
-python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Install ffmpeg (required for audio processing):
-
-```bash
-# On macOS with Homebrew
-brew install ffmpeg
-
-# On Ubuntu/Debian
-sudo apt-get install ffmpeg
-
-# On Windows
-# Download from https://ffmpeg.org/download.html
-```
-
-Download the required prompt audio files:
-
-```bash
-# Create prompts directory
-mkdir -p prompts
-
-# Download prompt files and place them in the prompts directory
-https://huggingface.co/spaces/sesame/csm-1b/tree/main/prompts
-```
-
-### Interactive Web Interface
-
-Run the Gradio web interface for an interactive experience:
-
-```bash
-# Option 1: Set environment variable when running
-NO_TORCH_COMPILE=1 python run_csm_gradio.py
-
-# Option 2: Run normally (environment variable is set in the script)
-python run_csm_gradio.py
-```
-
-This will launch a web interface where you can:
-- Choose or customize voice prompts for both speakers
-- Upload or record your own voice prompts
-- Enter a conversation with alternating lines between speakers
-- Generate and play the conversation audio directly in the browser
-
-The interface will automatically use CUDA if available for faster generation,
-otherwise it will fall back to CPU mode.
 
 ### Python API
 
