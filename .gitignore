@@ -45,3 +45,6 @@ context_audio.wav
 # Model files
 *.pt
 *.ckpt
+
+# Keep assets
+!assets/*
