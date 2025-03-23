@@ -9,10 +9,7 @@ This repository contains Gradio app for locally running the Conversational Speec
   </a>
 </div>
 
-Generate your own samples using:
-```bash
-python run_csm.py
-```
+Generate your own samples using the UI.
 
 ## UI Screenshots:
 ![Gradio UI](assets/gradio-demo.jpg)
