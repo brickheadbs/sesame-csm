@@ -6,11 +6,6 @@ numpy
 huggingface_hub
 transformers
 
-# MLX dependencies
-mlx>=0.22.1
-mlx-lm>=0.22.0
-moshi-mlx>=0.2.2
-
 # Audio processing
 audiofile>=1.5.1
 audresample>=1.3.3
@@ -27,3 +22,8 @@ silentcipher @ git+https://github.com/SesameAILabs/silentcipher@master
 bitsandbytes>=0.41.1
 ffmpeg-python
 soundfile
+
+# MLX dependencies (automatically installed only on Apple Silicon)
+mlx>=0.22.1; platform_system == "Darwin" and platform_machine == "arm64"
+mlx-lm>=0.22.0; platform_system == "Darwin" and platform_machine == "arm64"
+moshi-mlx>=0.2.2; platform_system == "Darwin" and platform_machine == "arm64"

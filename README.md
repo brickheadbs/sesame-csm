@@ -20,7 +20,8 @@ pip install -r requirements.txt
 ```
 You need to have access to these models on huggingface:
 
-Llama-3.2-1B -- https://huggingface.co/meta-llama/Llama-3.2-1B 
+Llama-3.2-1B -- https://huggingface.co/meta-llama/Llama-3.2-1B
+
 CSM-1B -- https://huggingface.co/sesame/csm-1b
 
 Login to hugging face and request access, it should not take much time to get access
@@ -95,7 +96,9 @@ The scripts support three backends:
 # CSM
 
 **2025/03/20** - I am releasing support for Apple MLX for Mac device. The UI will auto select the backend from CUDA, MPS or CPU. The MLX code is an adaptation from [Senstella/csm-mlx](https://github.com/senstella/csm-mlx)
+
 **2025/03/15** - I am releasing support for CPU for non-CUDA device. I am relasing a Gradio UI as well.
+
 **2025/03/13** - We are releasing the 1B CSM variant. The checkpoint is [hosted on HuggingFace](https://huggingface.co/sesame/csm_1b).
 
 ---
