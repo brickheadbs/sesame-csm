@@ -69,18 +69,21 @@ def load_prompt_audio(audio_path: str, target_sample_rate: int) -> Any:  # Chang
     )
     return audio_tensor
 
-def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, backend: str) -> Any:  # Changed return type
+def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, backend: str) -> Any:
     audio_tensor = load_prompt_audio(audio_path, sample_rate)
     
     if backend == "mlx":
+        # Only import and use MLX-related code when using MLX backend
+        global mx, MLXSegment
+        from csm_mlx import Segment as MLXSegment
+        import mlx.core as mx
+
         # Convert torch tensor to MLX array
         if isinstance(audio_tensor, torch.Tensor):
             audio_tensor = mx.array(audio_tensor.numpy())
         return MLXSegment(text=text, speaker=speaker, audio=audio_tensor)
     else:
-        # Convert MLX array to torch tensor if needed
-        if isinstance(audio_tensor, mx.array):
-            audio_tensor = torch.from_numpy(audio_tensor.numpy())
+        # For non-MLX backends, we know it's always a torch tensor
         return TorchSegment(text=text, speaker=speaker, audio=audio_tensor)
 
 def get_backend():
