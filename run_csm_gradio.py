@@ -1,6 +1,8 @@
 import os
 import sys
 from typing import Union, Any  # Add this import for type hints
+import time  # Add this import
+import psutil  # Add this import
 
 # Add csm-mlx directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "csm-mlx"))
@@ -71,7 +73,7 @@ def load_prompt_audio(audio_path: str, target_sample_rate: int) -> Any:  # Chang
 
 def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, backend: str) -> Any:
     audio_tensor = load_prompt_audio(audio_path, sample_rate)
-    
+
     if backend == "mlx":
         # Only import and use MLX-related code when using MLX backend
         global mx, MLXSegment
@@ -86,17 +88,56 @@ def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, b
         # For non-MLX backends, we know it's always a torch tensor
         return TorchSegment(text=text, speaker=speaker, audio=audio_tensor)
 
-def get_backend():
-    """Automatically select the best available backend"""
-    if torch.cuda.is_available():
-        return "cuda"
-    elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
+def setup_mlx():
+    """Setup MLX imports and return True if successful"""
+    try:
         global MLXCSM, csm_1b_mlx, MLXSegment, mx
         from csm_mlx import CSM as MLXCSM, csm_1b as csm_1b_mlx, Segment as MLXSegment
         import mlx.core as mx
-        return "mlx"
-    else:
-        return "cpu"
+        return True
+    except ImportError:
+        return False
+
+def get_backend():
+    """Automatically select the best available backend"""
+    # Allow override via environment variable
+    forced_backend = os.environ.get("CSM_BACKEND", "").lower()
+    if forced_backend in ["cpu", "cuda", "mlx"]:
+        if forced_backend == "mlx" and setup_mlx():
+            return "mlx"
+        elif forced_backend in ["cpu", "cuda"]:
+            return forced_backend
+    
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
+        if setup_mlx():
+            return "mlx"
+    return "cpu"
+
+def get_memory_usage(backend: str) -> float:
+    """Get peak memory usage based on backend"""
+    if backend == "mlx":
+        return mx.metal.get_peak_memory() / 1024**3  # Convert to GB
+    elif backend == "cuda":
+        return torch.cuda.max_memory_allocated() / 1024**3  # Convert to GB
+    elif backend == "cpu":
+        # Get process memory usage
+        process = psutil.Process(os.getpid())
+        return process.memory_info().rss / 1024**3  # Convert bytes to GB
+    return 0
+
+def reset_memory_tracking(backend: str):
+    """Reset memory tracking based on backend"""
+    if backend == "mlx":
+        mx.metal.reset_peak_memory()
+    elif backend == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+    elif backend == "cpu":
+        # For CPU, we can trigger garbage collection
+        import gc
+        gc.collect()
 
 def infer(
     text_prompt_speaker_a,
@@ -104,33 +145,49 @@ def infer(
     audio_prompt_speaker_a,
     audio_prompt_speaker_b,
     conversation_input,
-) -> tuple[int, np.ndarray]:
+) -> tuple[Any]:
     backend = get_backend()
     print(f"Using backend: {backend}")
 
     try:
+        # Track timing and memory
+        start_total = time.time()
+        reset_memory_tracking(backend)
+        
+        # Track text encoding/model loading time
+        start_load = time.time()
         if backend == "mlx":
-            # Use csm-mlx's implementation
+            # MLX setup code
             from mlx_lm.sample_utils import make_sampler
             from csm_mlx import generate as mlx_generate
-            
-            # Initialize model
+
             generator = MLXCSM(csm_1b_mlx())
             weight = hf_hub_download(repo_id="senstella/csm-1b-mlx", filename="ckpt.safetensors")
             generator.load_weights(weight)
             sample_rate = 24000
+        else:
+            generator = load_csm_1b_torch(backend)
+            sample_rate = generator.sample_rate
 
-            # Prepare prompts
-            prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, sample_rate, backend)
-            prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, sample_rate, backend)
-            context = [prompt_a, prompt_b]
+        load_time = time.time() - start_load
+        load_mem = get_memory_usage(backend)
 
-            # Generate conversation
-            generated_segments = []
-            conversation_lines = [line.strip() for line in conversation_input.strip().split("\n") if line.strip()]
-            
-            for i, line in enumerate(conversation_lines):
-                speaker_id = i % 2
+        # Track generation time
+        start_gen = time.time()
+        reset_memory_tracking(backend)
+
+        # Prepare prompts
+        prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, sample_rate, backend)
+        prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, sample_rate, backend)
+        context = [prompt_a, prompt_b]
+
+        # Generate conversation
+        generated_segments = []
+        conversation_lines = [line.strip() for line in conversation_input.strip().split("\n") if line.strip()]
+
+        for i, line in enumerate(conversation_lines):
+            speaker_id = i % 2
+            if backend == "mlx":
                 audio = mlx_generate(
                     generator,
                     text=line,
@@ -140,44 +197,45 @@ def infer(
                     sampler=make_sampler(temp=0.8, top_k=50)
                 )
                 generated_segments.append(MLXSegment(text=line, speaker=speaker_id, audio=audio))
-
-            # Concatenate all generations
-            all_audio = mx.concat([seg.audio for seg in generated_segments], axis=0)
-            # Convert to 16-bit PCM format that Gradio expects
-            audio_array = (all_audio * 32768).astype(mx.int16)
-            # Convert to numpy array
-            audio_array = np.array(audio_array.tolist(), dtype=np.int16)
-
-        else:
-            # Original PyTorch implementation
-            generator = load_csm_1b_torch(backend)
-            sample_rate = generator.sample_rate
-
-            # Prepare prompts
-            prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, sample_rate, backend)
-            prompt_b = prepare_prompt(text_prompt_speaker_b, 1, audio_prompt_speaker_b, sample_rate, backend)
-            prompt_segments = [prompt_a, prompt_b]
-            
-            generated_segments = []
-            conversation_lines = [line.strip() for line in conversation_input.strip().split("\n") if line.strip()]
-            
-            for i, line in enumerate(conversation_lines):
-                speaker_id = i % 2
+            else:
+                # PyTorch (CPU/CUDA) generation
                 audio_tensor = generator.generate(
                     text=line,
                     speaker=speaker_id,
-                    context=prompt_segments + generated_segments,
+                    context=context + generated_segments,
                     max_audio_length_ms=10_000,
                 )
                 generated_segments.append(TorchSegment(text=line, speaker=speaker_id, audio=audio_tensor))
 
+        # Concatenate all generations
+        if backend == "mlx":
+            all_audio = mx.concat([seg.audio for seg in generated_segments], axis=0)
+            audio_array = (all_audio * 32768).astype(mx.int16)
+            audio_array = np.array(audio_array.tolist(), dtype=np.int16)
+        else:
             all_audio = torch.cat([seg.audio for seg in generated_segments], dim=0)
             audio_array = (all_audio * 32768).to(torch.int16).cpu().numpy()
 
-        return sample_rate, audio_array
+        gen_time = time.time() - start_gen
+        gen_mem = get_memory_usage(backend)
+
+        # Format stats with memory info for all backends
+        stats = {
+            "load_time": f"**Model Loading Time:** {load_time:.2f}s",
+            "gen_time": f"**Generation Time:** {gen_time:.2f}s",
+            "total_time": f"**Total Time:** {time.time() - start_total:.2f}s",
+            "load_mem": f"**Model Loading Memory:** {load_mem:.2f}GB" if load_mem > 0 else "**Model Loading Memory:** N/A",
+            "gen_mem": f"**Generation Memory:** {gen_mem:.2f}GB" if gen_mem > 0 else "**Generation Memory:** N/A",
+            "total_mem": f"**Total Peak Memory:** {max(load_mem, gen_mem):.2f}GB" if max(load_mem, gen_mem) > 0 else "**Total Peak Memory:** N/A",
+        }
+
+        # Return tuple of (audio_tuple, stats...)
+        return (sample_rate, audio_array), stats["load_time"], stats["gen_time"], stats["total_time"], stats["load_mem"], stats["gen_mem"], stats["total_mem"]
 
     except Exception as e:
-        raise gr.Error(f"Error generating audio: {e}")
+        error_msg = f"Error generating audio: {e}"
+        empty_stats = ["N/A"] * 6  # 6 stats fields
+        raise gr.Error(error_msg)
 
 def update_prompt(speaker):
     if speaker in SPEAKER_PROMPTS:
@@ -245,6 +303,19 @@ with gr.Blocks() as app:
     generate_btn = gr.Button("Generate conversation", variant="primary")
     audio_output = gr.Audio(label="Generated conversation")
 
+    # Add Stats Box
+    with gr.Group(visible=True) as stats_group:
+        gr.Markdown("### 🔍 Generation Stats")
+        with gr.Row():
+            with gr.Column(scale=1):
+                load_mem = gr.Markdown("**Model Loading Memory:** N/A")
+                gen_mem = gr.Markdown("**Generation Memory:** N/A")
+                total_mem = gr.Markdown("**Total Peak Memory:** N/A")
+            with gr.Column(scale=1):
+                load_time = gr.Markdown("**Model Loading Time:** N/A")
+                gen_time = gr.Markdown("**Generation Time:** N/A")
+                total_time = gr.Markdown("**Total Time:** N/A")
+
     generate_btn.click(
         fn=infer,
         inputs=[
@@ -254,8 +325,23 @@ with gr.Blocks() as app:
             audio_prompt_speaker_b,
             conversation_input,
         ],
-        outputs=[audio_output],
+        outputs=[
+            audio_output,
+            load_time,
+            gen_time,
+            total_time,
+            load_mem,
+            gen_mem,
+            total_mem,
+        ],
     )
 
 if __name__ == "__main__":
-    app.launch()
+    # Launch the app and automatically open in browser
+    app.launch(
+        share=False,  # Don't create public URL
+        inbrowser=True,  # Automatically open in default browser
+        server_name="0.0.0.0",  # Listen on all network interfaces
+        server_port=7860,  # Default Gradio port
+        show_error=True,  # Show detailed error messages
+    )
