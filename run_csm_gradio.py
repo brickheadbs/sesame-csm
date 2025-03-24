@@ -88,17 +88,32 @@ def prepare_prompt(text: str, speaker: int, audio_path: str, sample_rate: int, b
         # For non-MLX backends, we know it's always a torch tensor
         return TorchSegment(text=text, speaker=speaker, audio=audio_tensor)
 
-def get_backend():
-    """Automatically select the best available backend"""
-    if torch.cuda.is_available():
-        return "cuda"
-    elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
+def setup_mlx():
+    """Setup MLX imports and return True if successful"""
+    try:
         global MLXCSM, csm_1b_mlx, MLXSegment, mx
         from csm_mlx import CSM as MLXCSM, csm_1b as csm_1b_mlx, Segment as MLXSegment
         import mlx.core as mx
-        return "mlx"
-    else:
-        return "cpu"
+        return True
+    except ImportError:
+        return False
+
+def get_backend():
+    """Automatically select the best available backend"""
+    # Allow override via environment variable
+    forced_backend = os.environ.get("CSM_BACKEND", "").lower()
+    if forced_backend in ["cpu", "cuda", "mlx"]:
+        if forced_backend == "mlx" and setup_mlx():
+            return "mlx"
+        elif forced_backend in ["cpu", "cuda"]:
+            return forced_backend
+    
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
+        if setup_mlx():
+            return "mlx"
+    return "cpu"
 
 def get_memory_usage(backend: str) -> float:
     """Get peak memory usage based on backend"""
@@ -172,22 +187,34 @@ def infer(
 
         for i, line in enumerate(conversation_lines):
             speaker_id = i % 2
-            audio = mlx_generate(
-                generator,
-                text=line,
-                speaker=speaker_id,
-                context=context + generated_segments,
-                max_audio_length_ms=10_000,
-                sampler=make_sampler(temp=0.8, top_k=50)
-            )
-            generated_segments.append(MLXSegment(text=line, speaker=speaker_id, audio=audio))
+            if backend == "mlx":
+                audio = mlx_generate(
+                    generator,
+                    text=line,
+                    speaker=speaker_id,
+                    context=context + generated_segments,
+                    max_audio_length_ms=10_000,
+                    sampler=make_sampler(temp=0.8, top_k=50)
+                )
+                generated_segments.append(MLXSegment(text=line, speaker=speaker_id, audio=audio))
+            else:
+                # PyTorch (CPU/CUDA) generation
+                audio_tensor = generator.generate(
+                    text=line,
+                    speaker=speaker_id,
+                    context=context + generated_segments,
+                    max_audio_length_ms=10_000,
+                )
+                generated_segments.append(TorchSegment(text=line, speaker=speaker_id, audio=audio_tensor))
 
         # Concatenate all generations
-        all_audio = mx.concat([seg.audio for seg in generated_segments], axis=0)
-        # Convert to 16-bit PCM format that Gradio expects
-        audio_array = (all_audio * 32768).astype(mx.int16)
-        # Convert to numpy array
-        audio_array = np.array(audio_array.tolist(), dtype=np.int16)
+        if backend == "mlx":
+            all_audio = mx.concat([seg.audio for seg in generated_segments], axis=0)
+            audio_array = (all_audio * 32768).astype(mx.int16)
+            audio_array = np.array(audio_array.tolist(), dtype=np.int16)
+        else:
+            all_audio = torch.cat([seg.audio for seg in generated_segments], dim=0)
+            audio_array = (all_audio * 32768).to(torch.int16).cpu().numpy()
 
         gen_time = time.time() - start_gen
         gen_mem = get_memory_usage(backend)

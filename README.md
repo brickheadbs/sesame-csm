@@ -18,7 +18,7 @@ Generate your own samples using the UI.
 Blog - https://voipnuggets.com/2025/03/21/sesame-csm-gradio-ui-free-local-high-quality-text-to-speech-with-voice-cloning-cuda-apple-mlx-and-cpu/
 ## Installation
 
-VRAM needed to run the model is around 8.1 GB
+VRAM needed to run the model is around 8.1 GB on MLX, 8.5GB on CPU.
 ### Setup
 
 ```bash
