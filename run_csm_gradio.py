@@ -339,7 +339,7 @@ with gr.Blocks() as app:
 if __name__ == "__main__":
     # Launch the app and automatically open in browser
     app.launch(
-        share=True,  # Don't create public URL
+        share=False,  # Don't create public URL
         inbrowser=True,  # Automatically open in default browser
         server_name="0.0.0.0",  # Listen on all network interfaces
         server_port=7860,  # Default Gradio port
