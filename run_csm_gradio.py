@@ -2,6 +2,7 @@ import os
 import sys
 from typing import Union, Any  # Add this import for type hints
 import time  # Add this import
+import psutil  # Add this import
 
 # Add csm-mlx directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "csm-mlx"))
@@ -99,6 +100,30 @@ def get_backend():
     else:
         return "cpu"
 
+def get_memory_usage(backend: str) -> float:
+    """Get peak memory usage based on backend"""
+    if backend == "mlx":
+        return mx.metal.get_peak_memory() / 1024**3  # Convert to GB
+    elif backend == "cuda":
+        return torch.cuda.max_memory_allocated() / 1024**3  # Convert to GB
+    elif backend == "cpu":
+        # Get process memory usage
+        process = psutil.Process(os.getpid())
+        return process.memory_info().rss / 1024**3  # Convert bytes to GB
+    return 0
+
+def reset_memory_tracking(backend: str):
+    """Reset memory tracking based on backend"""
+    if backend == "mlx":
+        mx.metal.reset_peak_memory()
+    elif backend == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+    elif backend == "cpu":
+        # For CPU, we can trigger garbage collection
+        import gc
+        gc.collect()
+
 def infer(
     text_prompt_speaker_a,
     text_prompt_speaker_b,
@@ -112,9 +137,8 @@ def infer(
     try:
         # Track timing and memory
         start_total = time.time()
-        if backend == "mlx":
-            mx.metal.reset_peak_memory()
-
+        reset_memory_tracking(backend)
+        
         # Track text encoding/model loading time
         start_load = time.time()
         if backend == "mlx":
@@ -131,12 +155,11 @@ def infer(
             sample_rate = generator.sample_rate
 
         load_time = time.time() - start_load
-        load_mem = mx.metal.get_peak_memory() / 1024**3 if backend == "mlx" else 0
+        load_mem = get_memory_usage(backend)
 
         # Track generation time
         start_gen = time.time()
-        if backend == "mlx":
-            mx.metal.reset_peak_memory()
+        reset_memory_tracking(backend)
 
         # Prepare prompts
         prompt_a = prepare_prompt(text_prompt_speaker_a, 0, audio_prompt_speaker_a, sample_rate, backend)
@@ -167,17 +190,16 @@ def infer(
         audio_array = np.array(audio_array.tolist(), dtype=np.int16)
 
         gen_time = time.time() - start_gen
-        total_time = time.time() - start_total
-        gen_mem = mx.metal.get_peak_memory() / 1024**3 if backend == "mlx" else 0
+        gen_mem = get_memory_usage(backend)
 
-        # Format stats
+        # Format stats with memory info for all backends
         stats = {
             "load_time": f"**Model Loading Time:** {load_time:.2f}s",
             "gen_time": f"**Generation Time:** {gen_time:.2f}s",
-            "total_time": f"**Total Time:** {total_time:.2f}s",
-            "load_mem": f"**Model Loading Memory:** {load_mem:.2f}GB" if backend == "mlx" else "**Model Loading Memory:** N/A",
-            "gen_mem": f"**Generation Memory:** {gen_mem:.2f}GB" if backend == "mlx" else "**Generation Memory:** N/A",
-            "total_mem": f"**Total Peak Memory:** {max(load_mem, gen_mem):.2f}GB" if backend == "mlx" else "**Total Peak Memory:** N/A",
+            "total_time": f"**Total Time:** {time.time() - start_total:.2f}s",
+            "load_mem": f"**Model Loading Memory:** {load_mem:.2f}GB" if load_mem > 0 else "**Model Loading Memory:** N/A",
+            "gen_mem": f"**Generation Memory:** {gen_mem:.2f}GB" if gen_mem > 0 else "**Generation Memory:** N/A",
+            "total_mem": f"**Total Peak Memory:** {max(load_mem, gen_mem):.2f}GB" if max(load_mem, gen_mem) > 0 else "**Total Peak Memory:** N/A",
         }
 
         # Return tuple of (audio_tuple, stats...)
