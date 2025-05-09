@@ -51,7 +51,7 @@ SPEAKER_PROMPTS = {
 SPACE_INTRO_TEXT = """\
 # Sesame CSM 1B Demo
 
-Generate conversations using CSM 1B (Conversational Speech Model). 
+Generate conversations using CSM 1B (Conversational Speech Model).
 Each line in the conversation will alternate between Speaker A and B.
 """
 
@@ -107,7 +107,7 @@ def get_backend():
             return "mlx"
         elif forced_backend in ["cpu", "cuda"]:
             return forced_backend
-    
+
     if torch.cuda.is_available():
         return "cuda"
     elif torch.backends.mps.is_available():  # Check for MPS (Apple Silicon)
@@ -153,7 +153,7 @@ def infer(
         # Track timing and memory
         start_total = time.time()
         reset_memory_tracking(backend)
-        
+
         # Track text encoding/model loading time
         start_load = time.time()
         if backend == "mlx":
@@ -267,7 +267,7 @@ def create_speaker_prompt_ui(speaker_name: str):
 
 with gr.Blocks() as app:
     gr.Markdown(SPACE_INTRO_TEXT)
-    
+
     with gr.Row():
         with gr.Column():
             gr.Markdown("### Speaker A")
@@ -299,7 +299,7 @@ with gr.Blocks() as app:
         lines=10,
         value=DEFAULT_CONVERSATION
     )
-    
+
     generate_btn = gr.Button("Generate conversation", variant="primary")
     audio_output = gr.Audio(label="Generated conversation")
 

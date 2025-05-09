@@ -2,6 +2,8 @@
 
 This repository contains Gradio app for locally running the Conversational Speech Model (CSM) with support for both CUDA, MLX (Apple Silicon) and CPU backends.
 
+Check my blog post for [Setup Instructions](https://voipnuggets.com/2025/03/21/sesame-csm-gradio-ui-free-local-high-quality-text-to-speech-with-voice-cloning-cuda-apple-mlx-and-cpu/)
+
 ## Sample Audio
 <div align="center">
   <a href="https://voipnuggets.wordpress.com/wp-content/uploads/2025/03/audio.wav">
@@ -15,7 +17,6 @@ Generate your own samples using the UI.
 ![Gradio UI](assets/gradio-ui.jpg)
 ![Voice Clone](assets/speaker-voice.jpeg)
 
-Blog - https://voipnuggets.com/2025/03/21/sesame-csm-gradio-ui-free-local-high-quality-text-to-speech-with-voice-cloning-cuda-apple-mlx-and-cpu/
 ## Installation
 
 VRAM needed to run the model is around 8.1 GB on MLX, 4.5 on CUDA GPU and 8.5GB on CPU.
