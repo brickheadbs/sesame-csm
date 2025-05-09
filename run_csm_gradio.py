@@ -118,7 +118,7 @@ def get_backend():
 def get_memory_usage(backend: str) -> float:
     """Get peak memory usage based on backend"""
     if backend == "mlx":
-        return mx.metal.get_peak_memory() / 1024**3  # Convert to GB
+        return mx.get_peak_memory() / 1024**3  # Updated from mx.metal.get_peak_memory()
     elif backend == "cuda":
         return torch.cuda.max_memory_allocated() / 1024**3  # Convert to GB
     elif backend == "cpu":
@@ -130,7 +130,7 @@ def get_memory_usage(backend: str) -> float:
 def reset_memory_tracking(backend: str):
     """Reset memory tracking based on backend"""
     if backend == "mlx":
-        mx.metal.reset_peak_memory()
+        mx.reset_peak_memory()
     elif backend == "cuda":
         torch.cuda.reset_peak_memory_stats()
         torch.cuda.empty_cache()

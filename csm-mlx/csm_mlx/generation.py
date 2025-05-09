@@ -154,8 +154,6 @@ def generate(
         .squeeze(0)
     )
 
-    # TODO: Implement watermarking!
-
     return audio
 
 

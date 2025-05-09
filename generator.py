@@ -49,9 +49,6 @@ class Generator:
         mimi = loaders.get_mimi(mimi_weight, device=device)
         mimi.set_num_codebooks(32)
         self._audio_tokenizer = mimi
-
-        self._watermarker = load_watermarker(device=device)
-
         self.sample_rate = mimi.sample_rate
         self.device = device
 
