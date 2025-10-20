@@ -344,4 +344,7 @@ if __name__ == "__main__":
         server_name="0.0.0.0",  # Listen on all network interfaces
         server_port=7860,  # Default Gradio port
         show_error=True,  # Show detailed error messages
+        allowed_paths=[
+            "/Users/brandonschuster/.cache/huggingface/hub/models--sesame--csm-1b/snapshots/7a545da5caab051c5f5e6d9be161a5197e756a02/prompts"
+        ]
     )

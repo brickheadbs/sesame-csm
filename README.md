@@ -1,3 +1,68 @@
+# Sesame CSM 1B Installation & Usage Guide
+
+## Installation Steps
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/akashjss/sesame-csm.git ~/Projects/sesame.csm.1b
+   cd ~/Projects/sesame.csm.1b
+   ```
+2. **Create and activate a uv environment:**
+   ```bash
+   uv venv
+   source .venv/bin/activate
+   uv pip install -r requirements.txt
+   uv pip install bitsandbytes
+   ```
+3. **Scripts:**
+   - `start.sh`: Starts the Gradio server
+   - `shutdown.sh`: Stops the Gradio server
+   - Automator triggers: `automator/auto.trigger_csm.1b.app.sh` (start), `automator/auto.trigger_csm.1b.shutdown.sh` (stop)
+
+## Usage
+
+- **Start the server:**
+  ```bash
+  ./start.sh
+  ```
+- **Stop the server:**
+  ```bash
+  ./shutdown.sh
+  ```
+- **Default Gradio port:** `7860` (can be changed in the code)
+- **Access the GUI:** Open `http://localhost:7860` in your browser.
+
+## Model Options & Configuration
+
+- **Model parameters** (e.g., temperature, top_k) can be changed in:
+  - `generator.py` (default temperature: `0.9`)
+  - `run_csm_gradio.py` (sampler: `make_sampler(temp=0.8, top_k=50)`)
+- To add a settings page for these options, use Gradio’s multipage or blocks features. Otherwise, edit the code directly.
+
+## Progressive Web App (PWA)
+- Gradio supports enabling PWA for installable, offline-capable apps. See Gradio documentation for details.
+
+## FastAPI & LLM Integration
+- Gradio can be wrapped in FastAPI or expose endpoints for programmatic access.
+- LLM/chatbot input can be added using Gradio’s chatbot/text input components.
+
+## Alternative Models
+- GGUF models (e.g., [ggml-org/sesame-csm-1b-GGUF](https://hf.co/ggml-org/sesame-csm-1b-GGUF)) are available for fast response on Mac.
+- To use, update the model loading code in `run_csm_gradio.py` and `generator.py`.
+
+## Wake Word Triggering
+- No built-in API for external triggers. To use Porcupine or other wake word detection, create a Python script that listens for the wake word and calls the generation function or launches the server.
+
+## Troubleshooting
+- If you experience pauses or odd behavior, try adjusting temperature/top_k or test alternative models.
+- For GPU/MPS/MLX support, ensure your backend is set correctly in the code.
+
+## References
+- [Gradio Documentation](https://www.gradio.app/docs/)
+- [Hugging Face Models](https://huggingface.co/models?search=sesame+csm+1b)
+
+---
+For further customization or integration, see the Gradio guides and Hugging Face model pages.
 # Sesame CSM UI
 
 This repository contains Gradio app for locally running the Conversational Speech Model (CSM) with support for both CUDA, MLX (Apple Silicon) and CPU backends.
